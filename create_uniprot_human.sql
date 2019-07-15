@@ -1,3 +1,6 @@
-create table if not exists uniprot_human (uniprotswissprot PRIMARY KEY);
+.bail on
+create table uniprot_human(id, uniprot, length);
 .separator "\t"
-.import uniprot_sprot_human.txt uniprot_human
+.import uniprot_parsed.tsv uniprot_human
+create index uniprot_human_idx on uniprot_human(uniprot);
+delete from uniprot_human where id = 'id';
