@@ -70,6 +70,53 @@ get_human_uniprot_interpro_counts = function(interpro_ids, db_file) {
   return(res)
 }
 
+get_human_uniprot_count = function(db_file) {
+  con = dbConnect(RSQLite::SQLite(), db_file)
+  res = dbGetQuery(con, sprintf('select count(*) from (select distinct id from uniprot_human);'))
+  return(res)
+}
+
+get_pr_dgp_sql = function() {
+  return("
+SELECT uniprot_human.id as id, protein2ipr.uniprotswissprot as uniprot, interpro, interproname, 
+  min(domainstart) as domainstart_min, max(domainstop) as domainstop_max, uniprot_human.length as length, 
+  (domainstop_max - domainstart_min + 1) / length as pr_dgp
+FROM protein2ipr,uniprot_human
+WHERE protein2ipr.uniprotswissprot = uniprot_human.uniprot
+GROUP BY interpro;")
+}
+get_pr_dgp = function(db_file) {
+  con = dbConnect(RSQLite::SQLite(), db_file)
+  res = dbGetQuery(con, get_pr_dgp_sql())
+  return(res)
+}
+
+get_pr_p_sql = function() {
+  return("
+SELECT id, uniprot, length / t1.total_length as pr_p
+FROM uniprot_human, (
+  SELECT sum(length) as total_length FROM uniprot_human
+) as t1;")
+}
+get_pr_p = function(db_file) {
+  con = dbConnect(RSQLite::SQLite(), db_file)
+  res = dbGetQuery(con, get_pr_p_sql())
+  return(res)
+}
+
+get_pr_d = function(db_file) {
+  con = dbConnect(RSQLite::SQLite(), db_file)
+  res = dbGetQuery(con, sprintf("
+WITH pr_dgp_tbl AS ( %s ),
+pr_p_tbl AS ( %s )
+SELECT pr_dgp_tbl.interpro, pr_dgb_tbl.interproname, sum(pr_dgp_tbl.pr_dgp * pr_p_tbl.pr_p) as pr_d
+FROM pr_dgp_tbl, pr_p_tbl
+WHERE pr_dgp_tbl.id = pr_p_tbl.id
+GROUP BY pr_dgb_tbl.interpro
+", get_pr_dgp_sql(), get_pr_p_sql()))
+  return(res)
+}
+
 main = function(args) {
   # TODO currently using an RData with specific name
   #df = readRDS(args$maftools_object)
