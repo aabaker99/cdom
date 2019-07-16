@@ -6,6 +6,7 @@ import sys, argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--infile', '-i', required=True)
 parser.add_argument('--outdir', '-o', required=True)
+parser.add_argument('--name', '-n', help='Name of output file in <outdir>, defaults to "uniprot_parsed.tsv"', default='uniprot_parsed.tsv')
 args = parser.parse_args()
 
 id_regexp = re.compile('^ID\s+(\S+)\s+\S+\s+(\d+)\sAA.*$')
@@ -13,7 +14,7 @@ ac_regexp = re.compile('^AC(.*)$')
 
 rec = None
 line_no = 0
-with open(os.path.join(args.outdir, 'uniprot_parsed.tsv'), 'w') as ofh:
+with open(os.path.join(args.outdir, args.name), 'w') as ofh:
   ofh.write('{}\t{}\t{}\n'.format('id', 'uniprot', 'length'))
   with open(args.infile, 'r') as fh:
     for line in fh:
