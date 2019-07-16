@@ -17,7 +17,7 @@ uniprot_human_set = set()
 with open(parse_uniprot_ofp) as fh:
   for line in fh:
     line = line.rstrip()
-    id_v, unprot, length = line.split('\t')
+    id_v, uniprot, length = line.split('\t')
     uniprot_human_set.add(uniprot)
 
 ofp = os.path.join(args.outdir, 'protein2ipr_human_filtered.tsv')
