@@ -1,0 +1,13 @@
+#!/bin/sh
+
+USAGE="usage: download_1000genomes_vcf.sh <OUTDIR>"
+if [ -z "$1" ]; then
+  echo $USAGE >&2
+  exit 1
+fi
+
+export -f OUTDIR="$1"
+( 
+  cd $OUTDIR
+  wget 'ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/*.vcf.gz*'
+)
