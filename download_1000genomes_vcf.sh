@@ -6,8 +6,8 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-export -f OUTDIR="$1"
+export OUTDIR="$1"
 ( 
   cd $OUTDIR
-  wget 'ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/*.vcf.gz*'
+  wget 'ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/*.vcf.gz*'
 )
