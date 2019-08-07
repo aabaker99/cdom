@@ -1,4 +1,4 @@
-# library
+#!usr/bin/env python
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import PatchCollection
@@ -29,19 +29,29 @@ values=np.random.uniform(size=40)
 # plot with no marker
 # values is a list with size equal to size of gene in bp
 ax1.stem(values)
+ax1_xticks = ax1.get_xticks()
  
 # change color and shape and size and edges
 #(markers, stemlines, baseline) = ax1.stem(values)
 #plt.setp(markers, marker='D', markersize=10, markeredgecolor="orange", markeredgewidth=2)
 
-rect = Rectangle((0,0), 5, 5)
+TRACK_HEIGHT = 5
+rect = Rectangle((0,0), 5, TRACK_HEIGHT)
 cx = 2.5
 cy = 2.5
 
 pc = PatchCollection([rect]) # facecolor=facecolor, alpha=alpha, edgecolor=edgecolor)
-ax2.set_xlim(0, 10)
-ax2.set_ylim(0, 10)
+ax2.set_ylim(0, TRACK_HEIGHT)
 ax2.add_collection(pc)
+
+ax2.set_xticks(ax1.get_xticks())
+ax2.set_xbound(ax1.get_xbound())
+
+ax2.tick_params(axis='y', which='both', left=False, labelleft=False)
 ax2.annotate('hello', (cx, cy), color='w', weight='bold', ha='center', va='center')
 
-plt.show()
+ax1.set_title('NF1 Lollipop Plot')
+ax1.set_ylabel('Number of mutations')
+ax2.set_xlabel('Position')
+
+plt.savefig('out.png')
