@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 import sys, argparse
+import os, os.path
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import matplotlib as mpl
+mpl.use('Agg')
 from matplotlib.collections import PatchCollection
 from matplotlib import gridspec
 from matplotlib.patches import Rectangle
+from matplotlib.ticker import MaxNLocator
 
-# NF1
-length = 2839
-domains = [{
+NF1_domains = [{
   'id': 'IPR001936',
   'start': 1187,
   'stop': 1557,
@@ -20,6 +22,9 @@ domains = [{
   'stop': 1738,
   'label': 'CAL-TRIO lipid binding'
 }]
+
+def get_n_samples(maf_df):
+  return len(set(maf_df.loc[:,'Tumor_Sample_Barcode']))
 
 def get_mutations(maf_df, hgnc_symbol='NF1'):
   """
@@ -47,7 +52,7 @@ def get_mutations(maf_df, hgnc_symbol='NF1'):
     words = mut_str.split('/')
     if length is None:
       length = int(words[1])
-    pos = int(str1.split('/')[0].split('-')[0])
+    pos = int(mut_str.split('/')[0].split('-')[0])
     positions.append(pos)
 
   return {
@@ -57,7 +62,7 @@ def get_mutations(maf_df, hgnc_symbol='NF1'):
     'n_protein_mutations': n_protein_mutations
   }
 
-def plot(mutations_dict):
+def plot(mutations_dict, domains=[], n_samples=None, outfile=None):
   """
   Parameters
   ----------
@@ -69,24 +74,31 @@ def plot(mutations_dict):
   ax2 = plt.subplot(gs[1])
 
   # create data
-  # array of SNP position
-  values = np.random.uniform(size=40)
+  y = np.zeros(mutations_dict['length'])
+  for pos in mutations_dict['positions']:
+    y[pos-1] += 1
+  x = np.where(y != 0)[0]
+  y = y[y != 0]
 
   # plot with no marker
   # values is a list with size equal to size of gene in bp
-  ax1.stem(values)
+  ax1.stem(x,y)
    
-  def plot_domain(domain_name, domain_start, domain_stop):
-    TRACK_HEIGHT = 5
-    TRACK_Y_ORIGIN = 0
-    rect = Rectangle((domain_start,TRACK_Y_ORIGIN), domain_stop, TRACK_HEIGHT)
-    cx = (domain_start + domain_stop) / 2
-    cy = (TRACK_Y_ORIGIN + TRACK_HEIGHT) / 2
+  # plot domains
+  TRACK_HEIGHT = 5
+  TRACK_Y_ORIGIN = 0
+  ax2.set_ylim(TRACK_Y_ORIGIN, TRACK_HEIGHT)
+  rects = []
+  for domain in domains:
+    rect = Rectangle((domain['start'],TRACK_Y_ORIGIN), domain['stop']-domain['start']+1, TRACK_HEIGHT)
+    rects.append(rect)
 
-    pc = PatchCollection([rect]) # facecolor=facecolor, alpha=alpha, edgecolor=edgecolor)
-    ax2.set_ylim(TRACK_Y_ORIGIN, TRACK_HEIGHT)
-    ax2.add_collection(pc)
-    ax2.annotate(domain_name, (cx, cy), color='w', weight='bold', ha='center', va='center')
+    # TODO annotations are messy
+    #cx = (domain['start'] + domain['stop']) / 2
+    #cy = (TRACK_Y_ORIGIN + TRACK_HEIGHT) / 2
+    #ax2.annotate(domain['label'], (cx, cy), color='k', weight='bold', ha='center', va='center')
+  pc = PatchCollection(rects) # facecolor=facecolor, alpha=alpha, edgecolor=edgecolor)
+  ax2.add_collection(pc)
 
   # for shared axis
   ax2.tick_params(axis='y', which='both', left=False, labelleft=False)
@@ -94,11 +106,18 @@ def plot(mutations_dict):
   ax2.set_xbound(ax1.get_xbound())
 
   # labels
-  ax1.set_title('NF1 Lollipop Plot')
+  title_str = 'NF1 Protein Mutations'
+  if n_samples is not None:
+    title_str += ' (N = {})'.format(n_samples)
+  ax1.set_title(title_str)
   ax1.set_ylabel('Number of mutations')
+  ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
   ax2.set_xlabel('Position')
 
-  plt.savefig('out.png')
+  if outfile is None:
+    plt.savefig('out.png')
+  else:
+    plt.savefig(outfile)
 
 def get_table(synapse_id):
   import synapseclient
@@ -131,6 +150,6 @@ if __name__ == "__main__":
     sys.stderr.write("Error reading --infile or --synapse-id\n")
     sys.exit(4)
 
+  # TODO get domain data for other genes to automate
   mutations = get_mutations(maf_df, hgnc_symbol="NF1")
-  plot(mutations)
-
+  plot(mutations, NF1_domains, n_samples=get_n_samples(maf_df), outfile=os.path.join(args.outdir, 'lollipop.png'))
