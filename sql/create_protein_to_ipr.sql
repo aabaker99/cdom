@@ -3,4 +3,4 @@ create table protein2ipr (uniprotswissprot, interpro, interproname, sourceid, do
 create index protein2ipr_uniprot on protein2ipr (uniprotswissprot);
 create index protein2ipr_interpro on protein2ipr (interpro);
 .separator "\t"
-.import ../data/protein2ipr.dat protein2ipr
+.import ../data/protein2ipr_human_filtered.tsv protein2ipr
