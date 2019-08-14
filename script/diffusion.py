@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 import argparse, sys
-import subprocess as sp
+import subprocess as su
 import os, os.path
 import networkx as nx
 import numpy as np
 import scipy.sparse as sp
+import pandas as pd
+from scipy.sparse.linalg import norm
 
 SAMPLE_COLUMN = 'Tumor_Sample_Barcode'
+PROTEIN_COLUMN = 'ENSP'
 
 def write_provenance(outdir):
   # TODO write version as a bash comment?
@@ -30,10 +33,15 @@ def download_stringdb(outdir):
   url = 'https://stringdb-static.org/download/protein.links.detailed.v11.0/9606.protein.links.detailed.v11.0.txt.gz'
   fname = os.path.basename(url)
   fpath = os.path.join(outdir, fname)
-  if not os.path.exists(fpath):
-    args = ['wget', '-O', fpath]
-    sp.check_call(args)
-  return fpath
+  fpath_unzip, ext = os.path.splitext(fpath)
+  if not os.path.exists(fpath_unzip):
+    if not os.path.exists(fpath):
+      args = ['wget', '-O', fpath, url]
+      su.check_call(args)
+
+    args = ['gunzip', fpath]
+    su.check_call(args)
+  return fpath_unzip
 
 def parse_string_fh(fh, threshold=0.0, score='combined_score'):
   """
@@ -71,7 +79,7 @@ def parse_string_fh(fh, threshold=0.0, score='combined_score'):
     line_no += 1
     p1, p2, conf = parse_line_abc(line, score_index=score_index)
     if(conf >= threshold):
-      G.add_edge(p1, p2, {'weight': conf})
+      G.add_edge(p1, p2, **{'weight': conf})
   return G
 
 def parse_line_abc(line, score_index=-1):
@@ -188,12 +196,16 @@ def embed_arr(all_col_names, some_col_names, arr):
   for i,name in enumerate(all_col_names):
     all_name_to_ind[name] = i
 
+  failed_cols = set()
   for i in range(m):
     for j, name in enumerate(some_col_names):
-      j2 = all_name_to_ind[name]
-      rv[i,j2] = arr[i,j]
+      j2 = all_name_to_ind.get(name)
+      if j2 is None:
+        failed_cols.add(name)
+      else:
+        rv[i,j2] = arr[i,j]
 
-  return rv
+  return rv, failed_cols
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
@@ -205,13 +217,15 @@ if __name__ == "__main__":
   
   write_provenance(args.outdir)
 
+  sys.stderr.write("[status] Downloading and parsing STRINGdb... ")
   stringdb_fpath = download_stringdb(args.outdir)
   G = None
   with open(stringdb_fpath, 'r') as fh:
     G = parse_string_fh(fh)
   nodelist = sorted(G.nodes())
+  sys.stderr.write("done reading {} nodes and {} edges\n".format(G.order(), G.size()))
 
-  df = read_tsv_or_synapse_id(args.data)
+  df = read_tsv_or_synapse_id(args.data, args.outdir, args.delimiter)
 
   # ignore variants that are not mapped to an Ensembl protein identifier
   # TODO other row filters based on variant frequency
@@ -221,22 +235,36 @@ if __name__ == "__main__":
   # count the number of mutations in each ENSP
   sample_set = sorted(set(df_filt[SAMPLE_COLUMN]))
   row_vecs = []
+  all_failed_cols = set()
   for sample in sample_set:
     df_sample = df_filt[df_filt[SAMPLE_COLUMN] == sample][[SAMPLE_COLUMN, PROTEIN_COLUMN]] 
     df_sample_group_count = df_sample.groupby(PROTEIN_COLUMN).count()
     # TODO unclear how to rename the count column
-    row_vec_sample = df_sample_group_count[SAMPLE_COLUMN].to_numpy().transpose()
-    # TODO may fail if there is a mutation in an ENSP that is not in stringdb
-    row_vec_embed = embed_arr(nodelist, list(row_vec_sample.index), row_vec_sample)
+    row_vec_sample = df_sample_group_count[SAMPLE_COLUMN]
+    m = row_vec_sample.shape[0]
+    row_vec_embed, failed_cols = embed_arr(nodelist, list(row_vec_sample.index), row_vec_sample.to_numpy().reshape(1,m))
+    row_vecs.append(row_vec_embed)
+    all_failed_cols = all_failed_cols.union(failed_cols)
+  sys.stderr.write("Unable to diffuse the following proteins {} because they are absent from STRINGdb: ".format(len(all_failed_cols)) + ", ".join(sorted(all_failed_cols)) + "\n")
 
-  mat = sp.vstack(row_vecs)
+
+  mat = sp.csc_matrix(np.concatenate(row_vecs, axis=0))
   adj = nx.to_scipy_sparse_matrix(G, nodelist=nodelist, dtype=bool)
+
+  # free up memory
+  df = None
+  df_filt = None
+  row_vecs = None
+  G = None
+
   mat_diffused = diffusion(mat, adj)
 
   bn = os.path.basename(args.data)
   bn, ext = os.path.splitext(bn)
   ofp = os.path.join(args.outdir, '{}_diffused.tsv'.format(bn))
-  df_out = pd.DataFrame(mat_diffused, index=sample_set, columns=nodelist)
+  df_out = pd.DataFrame(mat_diffused.todense(), index=sample_set, columns=nodelist)
+  df_out.index.name = SAMPLE_COLUMN
   df_out.to_csv(ofp, sep='\t')
 
-  upload_to_synapse(args.outdir)
+  # TODO
+  #upload_to_synapse(args.outdir)
