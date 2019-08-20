@@ -46,7 +46,7 @@ def download_stringdb(outdir):
     su.check_call(args)
   return fpath_unzip
 
-def parse_string_fh(fh, threshold=0.0, score='combined_score'):
+def parse_string_fh(fh, threshold=0.0, score='combined_score', threshold_as_percentile=False):
   """
   Parameters
   ----------
@@ -63,6 +63,10 @@ def parse_string_fh(fh, threshold=0.0, score='combined_score'):
     Can be "neighborhood" "fusion" "cooccurence" "coexpression" "experimental" "database" 
     "textmining" or "combined_score"
 
+  threshold_as_percentile : bool
+    if True, interpret the threshold has a percentile value: if threshold is 0.9, include
+    only the top 10% scoring interactions
+
   Returns
   -------
   G : nx.Graph
@@ -78,11 +82,30 @@ def parse_string_fh(fh, threshold=0.0, score='combined_score'):
   score_index = columns.index(score)
 
   G = nx.Graph()
-  for line in fh:
-    line_no += 1
-    p1, p2, conf = parse_line_abc(line, score_index=score_index)
-    if(conf >= threshold):
+  weights = []
+  if threshold_as_percentile:
+    for line in fh:
+      line_no += 1
+      p1, p2, conf = parse_line_abc(line, score_index=score_index)
       G.add_edge(p1, p2, **{'weight': conf})
+      weights.append(conf)
+
+    weights = np.array(weights)
+    weights_per = np.percentile(weights, threshold*100)
+    to_remove = []
+    for u, v, attrs in G.edges.data():
+      weight = attrs['weight']
+      if weight <= weights_per:
+        to_remove.append((u,v))
+    for u,v in to_remove:
+      G.remove_edge(u,v)
+    
+  else:
+    for line in fh:
+      line_no += 1
+      p1, p2, conf = parse_line_abc(line, score_index=score_index)
+      if(conf >= threshold):
+        G.add_edge(p1, p2, **{'weight': conf})
   return G
 
 def parse_line_abc(line, score_index=-1):
@@ -224,6 +247,7 @@ Diffuse genetic variant data over the STRINGdb protein-protein interaction netwo
   parser.add_argument('--delimiter', default='\t', help='Field delimiter of <--data>; default = <TAB>')
   parser.add_argument('--outdir', '-o', help="Directory to place results", required=True)
   parser.add_argument('--synapse-id', '-s', help='synapse.org folder to upload results to')
+  parser.add_argument('--threshold', '-t', help='Edge weight threshold as a percentile in decimal e.g. 0.9 for 90th percentile', type=float)
   args = parser.parse_args()
   
   write_provenance(args.outdir)
@@ -232,7 +256,10 @@ Diffuse genetic variant data over the STRINGdb protein-protein interaction netwo
   stringdb_fpath = download_stringdb(args.outdir)
   G = None
   with open(stringdb_fpath, 'r') as fh:
-    G = parse_string_fh(fh)
+    if args.threshold is None:
+      G = parse_string_fh(fh)
+    else:
+      G = parse_string_fh(fh, threshold=args.threshold, threshold_as_percentile=True)
   nodelist = sorted(G.nodes())
   sys.stderr.write("done reading {} nodes and {} edges\n".format(G.order(), G.size()))
 
