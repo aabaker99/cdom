@@ -249,12 +249,14 @@ Diffuse genetic variant data over the STRINGdb protein-protein interaction netwo
   if ALLELE_FREQ_COLUMN not in df_filt.columns:
     sys.stderr.write("[error] Cannot filter out common variants because alelle frequency column {} is missing\n".format(ALLELE_FREQ_COLUMN))
     sys.exit(21)
-  df_filt = df_filt[df_filt.loc[ALLELE_FREQ_COLUMN] < 0.01]
+  df_filt = df_filt[df_filt[ALLELE_FREQ_COLUMN] < 0.01]
   n_variants_f2 = df_filt.shape[0]
-  sys.stderr.write("[status] Filtered out {} variants with allele frequency >= 0.01, {} remain\n".format(n_variants_f2 - n_variants_f1, n_variants_f2))
+  sys.stderr.write("[status] Filtered out {} variants with allele frequency >= 0.01, {} remain\n".format(n_variants_f1 - n_variants_f2, n_variants_f2))
 
   # filter out benign variants according to PolyPhen (keep those for which we have no call from PolyPhen)
   df_filt = df_filt[pd.isna(df_filt[POLYPHEN_COLUMN]) | df_filt[POLYPHEN_COLUMN].str.contains(POLYPHEN_DAMAGING)]
+  n_variants_f3 = df_filt.shape[0]
+  sys.stderr.write("[status] Filtered out {} variants with benign PolyPhen, {} remain\n".format(n_variants_f2 - n_variants_f3, n_variants_f3))
 
   # TODO
   # filter out weakly expressed genes
