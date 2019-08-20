@@ -10,6 +10,9 @@ from scipy.sparse.linalg import norm
 
 SAMPLE_COLUMN = 'Tumor_Sample_Barcode'
 PROTEIN_COLUMN = 'ENSP'
+ALLELE_FREQ_COLUMN = 'ExAC_AF'
+POLYPHEN_COLUMN = "PolyPhen"
+POLYPHEN_DAMAGING = 'damaging'
 
 def write_provenance(outdir):
   # TODO write version as a bash comment?
@@ -207,9 +210,17 @@ def embed_arr(all_col_names, some_col_names, arr):
 
   return rv, failed_cols
 
+# TODO 
+def filter_variants_by_expression(df):
+  pass
+
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser()
-  parser.add_argument('--data', '-d', help="Tabular data file or synapse id with maftools output", required=True)
+  parser = argparse.ArgumentParser(description="""
+Diffuse genetic variant data over the STRINGdb protein-protein interaction network
+""")
+  parser.add_argument('--variant-data', '-d', help="Tabular data file or synapse id with maftools output", required=True)
+  parser.add_argument('--expression-data', '-e', help="Tabular data or synapse id with RNA expression levels for variant filtering, e.g. syn20449214")
+  parser.add_argument('--join-column', '-j', help='If --expression-data is provided, the column shared by both datasets to join on')
   parser.add_argument('--delimiter', default='\t', help='Field delimiter of <--data>; default = <TAB>')
   parser.add_argument('--outdir', '-o', help="Directory to place results", required=True)
   parser.add_argument('--synapse-id', '-s', help='synapse.org folder to upload results to')
@@ -225,11 +236,34 @@ if __name__ == "__main__":
   nodelist = sorted(G.nodes())
   sys.stderr.write("done reading {} nodes and {} edges\n".format(G.order(), G.size()))
 
-  df = read_tsv_or_synapse_id(args.data, args.outdir, args.delimiter)
+  df = read_tsv_or_synapse_id(args.variant_data, args.outdir, args.delimiter)
 
+  # variant filtering - {{
   # ignore variants that are not mapped to an Ensembl protein identifier
-  # TODO other row filters based on variant frequency
-  df_filt = df[pd.notna(df['ENSP']) & df['ENSP'].str.contains('ENSP')]
+  n_variants = df.shape[0]
+  df_filt = df[pd.notna(df[PROTEIN_COLUMN]) & df[PROTEIN_COLUMN].str.contains(PROTEIN_COLUMN)]
+  n_variants_f1 = df_filt.shape[0]
+  sys.stderr.write("[status] Filtered out {} variants without ENSP identifiers, {} remain\n".format(n_variants - n_variants_f1, n_variants_f1))
+
+  # filter out common variants
+  if ALLELE_FREQ_COLUMN not in df_filt.columns:
+    sys.stderr.write("[error] Cannot filter out common variants because alelle frequency column {} is missing\n".format(ALLELE_FREQ_COLUMN))
+    sys.exit(21)
+  df_filt = df_filt[df_filt.loc[ALLELE_FREQ_COLUMN] < 0.01]
+  n_variants_f2 = df_filt.shape[0]
+  sys.stderr.write("[status] Filtered out {} variants with allele frequency >= 0.01, {} remain\n".format(n_variants_f2 - n_variants_f1, n_variants_f2))
+
+  # filter out benign variants according to PolyPhen (keep those for which we have no call from PolyPhen)
+  df_filt = df_filt[pd.isna(df_filt[POLYPHEN_COLUMN]) | df_filt[POLYPHEN_COLUMN].str.contains(POLYPHEN_DAMAGING)]
+
+  # TODO
+  # filter out weakly expressed genes
+  #if args.expression_data is not None:
+    # TODO potentially different delimiter
+    #df_exp = read_tsv_or_synapse_id(args.expression_data, args.outdir, args.delimiter)
+    # map HGNC -> ENSP
+
+  # }} - variant filtering
 
   # group by patient
   # count the number of mutations in each ENSP
@@ -247,7 +281,6 @@ if __name__ == "__main__":
     all_failed_cols = all_failed_cols.union(failed_cols)
   sys.stderr.write("Unable to diffuse the following proteins {} because they are absent from STRINGdb: ".format(len(all_failed_cols)) + ", ".join(sorted(all_failed_cols)) + "\n")
 
-
   mat = sp.csc_matrix(np.concatenate(row_vecs, axis=0))
   adj = nx.to_scipy_sparse_matrix(G, nodelist=nodelist, dtype=bool)
 
@@ -259,7 +292,7 @@ if __name__ == "__main__":
 
   mat_diffused = diffusion(mat, adj)
 
-  bn = os.path.basename(args.data)
+  bn = os.path.basename(args.variant_data)
   bn, ext = os.path.splitext(bn)
   ofp = os.path.join(args.outdir, '{}_diffused.tsv'.format(bn))
   df_out = pd.DataFrame(mat_diffused.todense(), index=sample_set, columns=nodelist)
