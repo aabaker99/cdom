@@ -18,8 +18,8 @@ Plot the frequency of amino acid mutations for a protein of interest.
 Currently only analyzes the NF1 protein.
 
 ## Data
-- [uniprot\_sprot\_human](ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_sprot_human.dat.gz)
-- [protein2ipr](ftp://ftp.ebi.ac.uk/pub/databases/interpro/74.0/protein2ipr.dat.gz)
+- uniprot\_sprot\_human at ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_sprot_human.dat.gz
+- protein2ipr at ftp://ftp.ebi.ac.uk/pub/databases/interpro/74.0/protein2ipr.dat.gz
 
 ## Documentation
 - [uniprot](https://web.expasy.org/docs/userman.html)
