@@ -13,6 +13,9 @@ Genetic variants are filtered to include only those which have a rare allele fre
 ## scripts/filter_protein_to_ipr.py
 Make the InterPro protein2ipr data more managble by excluding all non-human proteins.
 
+## scripts/parse_uniprot.py
+Called by filter_protein_to_ipr.py
+
 ## scripts/nf_lollipop.py
 Plot the frequency of amino acid mutations for a protein of interest.
 Currently only analyzes the NF1 protein.
