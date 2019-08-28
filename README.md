@@ -39,6 +39,6 @@ Scripts to install (some) of the dependencies are located in the *install* direc
 ## TODO
 - Update mutated_domains.R to support a generic MAF file or one on Synapse
 - Finalize application of mutated_domains.R to 1000 genomes data
-- Program to synthesize frequently mutated domains in disease and control populations (which domains are mutated in disease state significantly more than the control?)
-- Check if subsetting InterPro's protein2ipr data to include only human proteins is a sufficient reduction in the size of data to be able to perform in-memory joins of InterPro and mutation data in R (an obviate the need for SQLite).
+- Program to synthesize frequently mutated domains in disease and control populations (which domains are mutated in disease state significantly more than the control?); this should include a difference in proportions test a la prop.test in R
+- Check if subsetting InterPro's protein2ipr data to include only human proteins is a sufficient reduction in the size of data to be able to perform in-memory joins of InterPro and mutation data in R (and obviate the need for SQLite).
 - Generalize nf_lollipop.py to genes other than NF1
